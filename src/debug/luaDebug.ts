@@ -22,7 +22,6 @@ import { StatusBarManager } from '../common/statusBarManager';
 import { LineBreakpoint, ConditionBreakpoint, LogPoint } from './breakpoint';
 import { Tools } from '../common/tools';
 import { UpdateManager } from './updateManager';
-import * as std from "tstl";
 
 export class LuaDebugSession extends LoggingDebugSession {
     public static isNeedB64EncodeStr: boolean = true;
@@ -38,8 +37,6 @@ export class LuaDebugSession extends LoggingDebugSession {
     public static userConnectionFlag;      //这个标记位的作用是标记Adapter停止连接，因为Adapter是Server端，要等Client发来请求才能断开
     public static isListening;
     public static _server;
-
-    private static mapTS2Lua: std.TreeMap<number, string>;
 
     public static getInstance(): LuaDebugSession {
         return LuaDebugSession.instance;
