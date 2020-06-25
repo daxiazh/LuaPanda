@@ -1,3 +1,5 @@
+> 为 LuaPanda 添加基于 TypescriptToLua 的 SourceMap 的调试功能,以便能直接调试TS文件  
+
 # LuaPanda
 
 LuaPanda 是一个基于 VS Code 的 lua 代码工具，设计目标是简单易用。它支持多种开发框架，主要提供以下功能：
