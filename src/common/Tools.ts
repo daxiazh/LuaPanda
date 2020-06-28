@@ -16,6 +16,9 @@ export class Tools {
     public static VSCodeExtensionPath;  // VSCode插件所在路径，插件初始化时就会被赋值
     public static client;
 
+    public static luaRootPath: string;  // lua 文件的根目录
+    public static tsRootPath: string;   // TypeScript 文件的根目录。注：要想正确调试 ts，必须正确设置 tsRootPath 与 luaRootPath，因为会通过这两个路径来查找 .map 文件
+
     // 路径相关函数
     // 获取扩展中预置的lua文件位置
     public static getLuaPathInExtension() : string{

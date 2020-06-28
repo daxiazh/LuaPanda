@@ -272,6 +272,16 @@
 								"type": "boolean",
 								"description": "是否打开 LuaPanda 自动升级提示",
 								"default": true
+							},
+							"luaRootPath": {
+								"type": "string",
+								"description": "Lua 文件的根目录",
+								"default": "${workspaceFolder}/lua"
+							},
+							"tsRootPath": {
+								"type": "string",
+								"description": "TypeScript 文件的根目录，当下断点时，TS文件会切换到 luaRootPath 的相对目录下来查找 .map 文件",
+								"default": "${workspaceFolder}/ts"
 							}
 						}
 					}

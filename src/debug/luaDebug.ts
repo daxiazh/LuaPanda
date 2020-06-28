@@ -22,6 +22,7 @@ import { StatusBarManager } from '../common/statusBarManager';
 import { LineBreakpoint, ConditionBreakpoint, LogPoint } from './breakpoint';
 import { Tools } from '../common/tools';
 import { UpdateManager } from './updateManager';
+import { SourceMap } from "./SourceMap";
 
 export class LuaDebugSession extends LoggingDebugSession {
     public static isNeedB64EncodeStr: boolean = true;
@@ -143,6 +144,13 @@ export class LuaDebugSession extends LoggingDebugSession {
 
         Tools.useAutoPathMode = !!args.autoPathMode;
         Tools.pathCaseSensitivity = !!args.pathCaseSensitivity;
+
+        if(args.luaRootPath){
+            Tools.luaRootPath = Tools.genUnifiedPath(args.luaRootPath);
+        }
+        if(args.tsRootPath){
+            Tools.tsRootPath = Tools.genUnifiedPath(args.tsRootPath);
+        }
 
         if(Tools.useAutoPathMode === true){
             Tools.rebuildAcceptExtMap(args.luaFileExtension);
@@ -346,6 +354,7 @@ export class LuaDebugSession extends LoggingDebugSession {
         }        
 
         let vscodeBreakpoints = new Array(); //VScode UI识别的断点（起始行号1）
+        let luaBreakpoints = new Array();   // lua 文件的断点(起始行号1)
 
         args.breakpoints!.map(bp => {
             const id = this._runtime.getBreakPointId()
@@ -362,6 +371,30 @@ export class LuaDebugSession extends LoggingDebugSession {
             }
 
             vscodeBreakpoints.push(breakpoint);
+
+            // 通过 TS 的 sourcemap 文件来校验一下断点行号的有效性
+            const result = SourceMap.verifyBreakpoint(path, bp.line);
+            if(result.luaLine === undefined){
+                breakpoint.verified = false;    // 设置断点无效
+            }
+            else{
+                // 重新设置一下断点的行号。注：行号会根据 sourcemap 文件来自动定位到合适的行号
+                breakpoint.line = result.tsLine ? result.tsLine : result.luaLine;
+
+                // 构建 lua 使用的断点信息
+                bp.line = result.luaLine;
+                if (bp.condition) {
+                    breakpoint = new ConditionBreakpoint(true, bp.line, bp.condition, id);
+                }
+                else if (bp.logMessage) {
+                    breakpoint = new LogPoint(true, bp.line, bp.logMessage, id);
+                }
+                else {
+                    breakpoint = new LineBreakpoint(true, bp.line, id);
+                }
+    
+                luaBreakpoints.push(breakpoint);
+            }
         });
 
         response.body = {
@@ -393,7 +426,7 @@ export class LuaDebugSession extends LoggingDebugSession {
             let callbackArgs = new Array();
             callbackArgs.push(this);
             callbackArgs.push(response);
-            this._runtime.setBreakPoint(path, vscodeBreakpoints, function (arr) {
+            this._runtime.setBreakPoint(path, luaBreakpoints, function (arr) {
                 DebugLogger.AdapterInfo("确认断点");
                 let ins = arr[0];
                 ins.sendResponse(arr[1]);//在收到debugger的返回后，通知VSCode, VSCode界面的断点会变成已验证
