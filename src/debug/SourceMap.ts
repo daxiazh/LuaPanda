@@ -118,36 +118,46 @@ export namespace SourceMap{
     }
 
     /**
+     * 如果传入的文件路径是 ts 文件，则返回对应的 lua 文件路径
+     * @param tsFileName 传入要检查的文件路径，有可能是 ts 文件，也有可能不是
+     */
+    export function verifyLuaFilePath(tsFileName: string): string{
+        const tsPath = Tools.genUnifiedPath(tsFileName);
+        
+        if(!tsPath.endsWith(".ts")){
+            return tsFileName;
+        }
+
+        if(!tsPath.startsWith(Tools.tsRootPath)){
+            DebugLogger.showTips(`${tsFileName} 并不在 launch.json 中配置的 tsRootPath(${Tools.tsRootPath}) 目录下，无法下断点!`, 2);
+            return undefined;
+        }
+
+        let luaPath = tsPath.replace(Tools.tsRootPath, Tools.luaRootPath);
+        return luaPath.replace(".ts", ".lua");
+    }
+
+    /**
      * 校验指定TS文件指定行真正可以下
      * @param tsFileName ts 断点文件路径
      * @param line 断点行号
      * @returns 如果下断点成功，返回对应的断点行号，否则返回 undefined
      */
-    export function verifyBreakpoint(tsFileName: string, line: number): {tsLine: number|undefined, luaLine: number} {
+    export function verifyBreakpoint(tsFileName: string, line: number, luaPath: string): {tsLine: number|undefined, luaLine: number} {
+        if(luaPath === undefined){
+            return {tsLine: undefined, luaLine: undefined};
+        }
+        
         // 先在缓冲中查找
         let info = tsVerifiedLines.get(tsFileName);
         if (info) {
             return getTSFileLine(info, line);
         }
 
-        const tsPath = Tools.genUnifiedPath(tsFileName);
-        
-        if(!tsPath.endsWith(".ts")){
-            return {tsLine: undefined, luaLine: line};    // 不是 ts 文件，直接返回断点位置
-        }
-
-        if(!tsPath.startsWith(Tools.tsRootPath)){
-            DebugLogger.showTips(`${tsFileName} 并不在 launch.json 中配置的 tsRootPath(${Tools.tsRootPath}) 目录下，无法下断点!`, 2);
-            return {tsLine: undefined, luaLine: undefined};
-        }
-
-        let luaPath = tsPath.replace(Tools.tsRootPath, Tools.luaRootPath);
-        luaPath = luaPath.replace(".ts", ".lua");
-
         // 读取 sourcemap 文件
         const mapFilePath = luaPath + ".map";
         if(!fs.existsSync(mapFilePath)){
-            DebugLogger.showTips(`${luaPath} 文件不存在，无法下断点!`, 2);
+            DebugLogger.showTips(`${mapFilePath} 文件不存在，无法下断点\n注意确认 launch.json 配置的 tsRootPath 与 luaRootPath 目录正确!`, 2);
             return {tsLine: undefined, luaLine: undefined};
         }
 

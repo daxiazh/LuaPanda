@@ -280,7 +280,7 @@
 							},
 							"tsRootPath": {
 								"type": "string",
-								"description": "TypeScript 文件的根目录，当下断点时，TS文件会切换到 luaRootPath 的相对目录下来查找 .map 文件",
+								"description": "TypeScript 文件的根目录，当下断点时，TS 文件会切换到 luaRootPath 的相对目录下来查找 .map 文件",
 								"default": "${workspaceFolder}/ts"
 							}
 						}

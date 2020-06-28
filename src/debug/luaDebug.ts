@@ -351,8 +351,10 @@ export class LuaDebugSession extends LoggingDebugSession {
 
         if(LuaDebugSession.replacePath && LuaDebugSession.replacePath.length === 2){
             path = path.replace(LuaDebugSession.replacePath[1], LuaDebugSession.replacePath[0]);
-        }        
+        } 
 
+        const luaFilePath = SourceMap.verifyLuaFilePath(path);
+       
         let vscodeBreakpoints = new Array(); //VScode UI识别的断点（起始行号1）
         let luaBreakpoints = new Array();   // lua 文件的断点(起始行号1)
 
@@ -373,7 +375,7 @@ export class LuaDebugSession extends LoggingDebugSession {
             vscodeBreakpoints.push(breakpoint);
 
             // 通过 TS 的 sourcemap 文件来校验一下断点行号的有效性
-            const result = SourceMap.verifyBreakpoint(path, bp.line);
+            const result = SourceMap.verifyBreakpoint(path, bp.line, luaFilePath);
             if(result.luaLine === undefined){
                 breakpoint.verified = false;    // 设置断点无效
             }
@@ -406,19 +408,21 @@ export class LuaDebugSession extends LoggingDebugSession {
             LuaDebugSession.breakpointsArray = new Array();
         }
 
-        let isbkPathExist = false;  //断点路径已经存在于断点列表中
-        for (let bkMap of LuaDebugSession.breakpointsArray) {
-            if (bkMap.bkPath === path) {
-                bkMap["bksArray"] = vscodeBreakpoints;
-                isbkPathExist = true;
+        if(luaFilePath !== undefined){
+            let isbkPathExist = false;  //断点路径已经存在于断点列表中
+            for (let bkMap of LuaDebugSession.breakpointsArray) {
+                if (bkMap.bkPath === luaFilePath) {
+                    bkMap["bksArray"] = luaBreakpoints;
+                    isbkPathExist = true;
+                }
             }
-        }
 
-        if(!isbkPathExist){
-            let bk = new Object();
-            bk["bkPath"] = path;
-            bk["bksArray"] = vscodeBreakpoints;
-            LuaDebugSession.breakpointsArray.push(bk);
+            if(!isbkPathExist){
+                let bk = new Object();
+                bk["bkPath"] = luaFilePath;
+                bk["bksArray"] = luaBreakpoints;
+                LuaDebugSession.breakpointsArray.push(bk);
+            }
         }
 
         if (DataProcessor._socket && LuaDebugSession.userConnectionFlag) {
