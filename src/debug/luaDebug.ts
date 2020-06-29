@@ -204,6 +204,7 @@ export class LuaDebugSession extends LoggingDebugSession {
             //向debugger发送含配置项的初始化协议
             this._runtime.start((arr, info) => {
                 DebugLogger.AdapterInfo("已建立连接，发送初始化协议和断点信息!");
+                DebugLogger.AdapterInfo("==== 支持 TypeScriptToLua 的 TS 文件调试 ====");
                 //对luapanda.lua的版本控制，低于一定版本要提示升级
                 if (typeof info.debuggerVer == "string"){
                     //转数字
