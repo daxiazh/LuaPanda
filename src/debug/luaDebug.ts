@@ -480,11 +480,13 @@ export class LuaDebugSession extends LoggingDebugSession {
             stackFrames: stk.frames.map(f => {
                     let source = f.file as string;
 
-                    if(source.endsWith(".lua")) {
+                    if(source.endsWith(".lua")) {  // 处理 SourceMap
                         // 如果当前活动窗口的文件是 ts 文件，则偿试获取对应的 ts 栈函数
-                        const activeFile = Tools.getVSCodeAvtiveFilePath() as any;
-                        if(activeFile.retCode !== -1){
-
+                        const activeFile = Tools.getVSCodeAvtiveFilePath(true) as {retCode: number, filePath: string};
+                        if(activeFile.retCode !== -1 && activeFile.filePath.endsWith(".ts")){
+                            const ret = LuaDebugSession.getSourceMap(activeFile.filePath, f.line);
+                            source = ret.filePath;
+                            f.line = ret.line;
                         }
                     }
 
@@ -497,6 +499,10 @@ export class LuaDebugSession extends LoggingDebugSession {
             totalFrames: stk.count
         };
         this.sendResponse(response);
+    }
+
+    public static getSourceMap(luaFilePath: string, line: number): {filePath: string, line: number} {
+        return {filePath: luaFilePath, line: line};
     }
 
     /**

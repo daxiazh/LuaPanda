@@ -96,7 +96,7 @@ export namespace SourceMap{
         // 分隔每一行，每一列的源码映射
         for(const rowMapping of mappings.split(";")){
             if(rowMapping.length > 0){
-                for(const colMapping of rowMapping.split(",")){
+                for(const colMapping of rowMapping.split(",")){ // 分隔每一个映射位置
                     const offsets = decode(colMapping);
                     sourceIndex += (offsets[1] || 0);
                     sourceLine += (offsets[2] || 0);
@@ -115,6 +115,24 @@ export namespace SourceMap{
             line++;
         }
         return {sourceMap, tsFileLines};
+    }
+
+    /**
+     * 由传入的 SourceMap 文件构建对应的代码映射信息
+     * @param mapFilePath 指定 SourceMap 文件路径
+     */
+    function buildMap(mapFilePath: string): {sourceMap: SourceMap, tsFileLines: TSFileLines}{
+        if(!fs.existsSync(mapFilePath)){            
+            return undefined;
+        }
+
+        const fileData = fs.readFileSync(mapFilePath, 'utf-8');
+        const mapData = JSON.parse(fileData) as {mappings:string, sources: string[]};
+        if(!mapData.mappings || !mapData.sources){
+            return undefined;
+        }
+
+        return build(mapData.mappings);
     }
 
     /**
@@ -138,9 +156,9 @@ export namespace SourceMap{
     }
 
     /**
-     * 校验指定TS文件指定行真正可以下
+     * 校验指定TS文件指定行真正可以下断点的地方
      * @param tsFileName ts 断点文件路径
-     * @param line 断点行号
+     * @param line ts 断点行号
      * @returns 如果下断点成功，返回对应的断点行号，否则返回 undefined
      */
     export function verifyBreakpoint(tsFileName: string, line: number, luaPath: string): {tsLine: number|undefined, luaLine: number} {
@@ -160,18 +178,12 @@ export namespace SourceMap{
 
         // 读取 sourcemap 文件
         const mapFilePath = luaPath + ".map";
-        if(!fs.existsSync(mapFilePath)){
+        const result = buildMap(mapFilePath);
+        if(result === undefined){
             DebugLogger.showTips(`${mapFilePath} 文件不存在，无法下断点\n注意确认 launch.json 配置的 tsRootPath 与 luaRootPath 目录正确!`, 2);
             return {tsLine: undefined, luaLine: undefined};
         }
 
-        const fileData = fs.readFileSync(mapFilePath, 'utf-8');
-        const mapData = JSON.parse(fileData) as {mappings:string, sources: string[]};
-        if(!mapData.mappings || !mapData.sources){
-            return {tsLine: undefined, luaLine: undefined};
-        }
-
-        const result = build(mapData.mappings);
         cache[luaPath] = result.sourceMap;
         tsVerifiedLines.set(tsFileName, result.tsFileLines);
 
@@ -188,6 +200,25 @@ export namespace SourceMap{
             }
 
             return {tsLine: it.first, luaLine: it.second};
+        }
+    }
+
+    /**
+     * 根据传入的 lua 文件信息获取对应的 TS 文件信息
+     * @param luaFilePath lua 文件路径
+     * @param luaLine lua 文件行号
+     */
+    export function getTSMap(luaFilePath: string, luaLine: number): {tsFilePath: string, line: number}{
+        const sourceMap = cache[luaFilePath];
+        if(sourceMap === undefined){
+            // 源文件还不存在，初始化一个
+            const mapFilePath = luaFilePath + ".map";
+            const result = buildMap(mapFilePath);
+            if(result === undefined){                
+                return undefined;
+            }
+    
+            cache[luaFilePath] = result.sourceMap;
         }
     }
 }

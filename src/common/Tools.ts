@@ -67,7 +67,8 @@ export class Tools {
     }
 
     // 获取当前VScode活跃窗口的文件路径
-    public static getVSCodeAvtiveFilePath(): Object{
+    // @param noDQM 指定是否带上双引号
+    public static getVSCodeAvtiveFilePath(noDQM: boolean = false): Object{
         let retObject = {retCode : 0, retMsg : "", filePath: "" };
 
         let activeWindow =  vscode.window.activeTextEditor;
@@ -98,7 +99,9 @@ export class Tools {
 
             let pathArray = activeFileUri.split(path.sep);
             let filePath = pathArray.join('/');
-            filePath = '"' +  filePath + '"'; //给路径加上""
+            if(!noDQM){
+                filePath = '"' +  filePath + '"'; //给路径加上""
+            }
             
             retObject.filePath = filePath;
             return retObject;
