@@ -1,3 +1,7 @@
+## 3.1.1  
+
++ 新增加了对 TypeScriptToLua 导出的 SourceMap 的支持
+
 ## 3.1.0
 
 + 新增了导出 slua 符号用于代码提示。
