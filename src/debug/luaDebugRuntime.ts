@@ -226,9 +226,9 @@ export class LuaDebugRuntime extends EventEmitter {
 
             if(reason == "stopOnBreakpoint"){
                 // 查找是否有对应的TS断点，如果有，则使用TS断点的位置
-                const ret = LuaDebugSession.remapBreakpoint(getinfoPath, element.line);
-                getinfoPath = ret.filePath;
-                element.line = ret.line;
+                if(LuaDebugSession.isTSBreakpoint(getinfoPath, element.line)){
+                    stack.isTSBP = true;    // 设置是 TS 触发的断点
+                }
             }
             
             element.file = Tools.checkFullPath(getinfoPath); 

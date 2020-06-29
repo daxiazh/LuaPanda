@@ -271,6 +271,7 @@ export class LuaDebugSession extends LoggingDebugSession {
         });
         LuaDebugSession.isListening = true;
         LuaDebugSession.breakpointsArray = new Array();
+        SourceMap.clear();  // 清除一下缓冲的数据
         this.sendEvent(new InitializedEvent()); //收到返回后，执行setbreakpoint
         
         //单文件调试模式
@@ -347,21 +348,21 @@ export class LuaDebugSession extends LoggingDebugSession {
      * @param line 断点所在 lua 文件的行号
      * @return 如果存在对应的 ts 文件断点信息，则返回，否则返回 lua 的断点信息
      */
-    public static remapBreakpoint(luaFilePath: string, line: number): {filePath: string, line: number}{
+    public static isTSBreakpoint(luaFilePath: string, line: number): boolean{
         for (let bkMap of LuaDebugSession.breakpointsArray) {
             if (bkMap.bkPath === luaFilePath) {
                 let luaBreakpoints = bkMap["bksArray"];
                 for (const element of luaBreakpoints) {
                     if(element.line === line){  // 具体见 LuaDebugSession.breakpointsArray 填充处
                         if(element.tsBreakpointLine !== undefined){
-                            return {filePath: bkMap["tsPath"], line: element.tsBreakpointLine}; // 返回对应的 TS 断点信息
+                            return true; // 返回对应的 TS 断点信息
                         }
-                        return {filePath: luaFilePath, line: line}; // 没有对应的 TS 断点，直接返回原始断点信息
+                        return false; // 没有对应的 TS 断点，直接返回原始断点信息
                     }
                 }
             }
         }
-        return {filePath: luaFilePath, line: line};
+        return false;
     }
 
     /**
@@ -476,6 +477,7 @@ export class LuaDebugSession extends LoggingDebugSession {
         const maxLevels = typeof args.levels === 'number' ? args.levels : 1000;
         const endFrame = startFrame + maxLevels;
         const stk = this._runtime.stack(startFrame, endFrame);
+        const isTSBP = stk.frames.isTSBP;
         response.body = {
             stackFrames: stk.frames.map(f => {
                     let source = f.file as string;
@@ -483,8 +485,9 @@ export class LuaDebugSession extends LoggingDebugSession {
                     if(source.endsWith(".lua")) {  // 处理 SourceMap
                         // 如果当前活动窗口的文件是 ts 文件，则偿试获取对应的 ts 栈函数
                         const activeFile = Tools.getVSCodeAvtiveFilePath(true) as {retCode: number, filePath: string};
-                        if(activeFile.retCode !== -1 && activeFile.filePath.endsWith(".ts")){
-                            const ret = LuaDebugSession.getSourceMap(activeFile.filePath, f.line);
+                        if(isTSBP || (activeFile.retCode !== -1 && activeFile.filePath.endsWith(".ts"))){
+                            // 如果 TS 断点或当前打开的文件是 TS，则偿试源码映射
+                            const ret = SourceMap.getTSMap(source, f.line);
                             source = ret.filePath;
                             f.line = ret.line;
                         }
@@ -499,10 +502,6 @@ export class LuaDebugSession extends LoggingDebugSession {
             totalFrames: stk.count
         };
         this.sendResponse(response);
-    }
-
-    public static getSourceMap(luaFilePath: string, line: number): {filePath: string, line: number} {
-        return {filePath: luaFilePath, line: line};
     }
 
     /**

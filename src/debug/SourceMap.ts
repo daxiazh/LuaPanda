@@ -3,6 +3,7 @@ import * as fs from "fs"
 import { Tools } from '../common/tools'
 import { DebugLogger } from "../common/logManager";
 import { make_pair } from "tstl/utility/Pair";
+import { dirname, resolve } from "path";
 
 // 保存 TS 文件的有效行号,即这些行号可以映射到编译后的 lua 文件行
 type TSFileLines = TreeMap<number, number>;
@@ -22,10 +23,10 @@ export interface SourceMap {
  * 支持 TypescriptToLua 生成的 SourceMap
  */
 export namespace SourceMap{
-    const cache: { [file: string]: SourceMap | false | undefined } = {};    // 缓冲 lua 文件对应的 SourceMap 信息
+    let cache: { [file: string]: SourceMap | false | undefined } = {};    // 缓冲 lua 文件对应的 SourceMap 信息
 
     // 缓冲 TS 有效的行号
-    const tsVerifiedLines: Map<string, TSFileLines> = new Map<string, TSFileLines>();
+    let tsVerifiedLines: Map<string, TSFileLines> = new Map<string, TSFileLines>();
 
     // 用于解码 VLQ，具体见： https://github.com/Rich-Harris/vlq/blob/master/src/vlq.ts
     let charToInteger: { [char: string]: number } = {};
@@ -121,18 +122,20 @@ export namespace SourceMap{
      * 由传入的 SourceMap 文件构建对应的代码映射信息
      * @param mapFilePath 指定 SourceMap 文件路径
      */
-    function buildMap(mapFilePath: string): {sourceMap: SourceMap, tsFileLines: TSFileLines}{
+    function buildMap(mapFilePath: string): {sourceMap: SourceMap, tsFileLines: TSFileLines}|false{
         if(!fs.existsSync(mapFilePath)){            
-            return undefined;
+            return false;
         }
 
         const fileData = fs.readFileSync(mapFilePath, 'utf-8');
         const mapData = JSON.parse(fileData) as {mappings:string, sources: string[]};
         if(!mapData.mappings || !mapData.sources){
-            return undefined;
+            return false;
         }
 
-        return build(mapData.mappings);
+        const result = build(mapData.mappings);
+        result.sourceMap.sources = mapData.sources;
+        return result;
     }
 
     /**
@@ -179,7 +182,7 @@ export namespace SourceMap{
         // 读取 sourcemap 文件
         const mapFilePath = luaPath + ".map";
         const result = buildMap(mapFilePath);
-        if(result === undefined){
+        if(!result){
             DebugLogger.showTips(`${mapFilePath} 文件不存在，无法下断点\n注意确认 launch.json 配置的 tsRootPath 与 luaRootPath 目录正确!`, 2);
             return {tsLine: undefined, luaLine: undefined};
         }
@@ -208,17 +211,42 @@ export namespace SourceMap{
      * @param luaFilePath lua 文件路径
      * @param luaLine lua 文件行号
      */
-    export function getTSMap(luaFilePath: string, luaLine: number): {tsFilePath: string, line: number}{
-        const sourceMap = cache[luaFilePath];
+    export function getTSMap(luaFilePath: string, luaLine: number): {filePath: string, line: number, column: number}{
+        let sourceMap = cache[luaFilePath];
         if(sourceMap === undefined){
             // 源文件还不存在，初始化一个
             const mapFilePath = luaFilePath + ".map";
             const result = buildMap(mapFilePath);
-            if(result === undefined){                
-                return undefined;
-            }
-    
-            cache[luaFilePath] = result.sourceMap;
+            sourceMap = result && result.sourceMap || false;    
+            cache[luaFilePath] = sourceMap;
         }
+
+        if(sourceMap){
+            const lineMapping = sourceMap[luaLine];
+            if(lineMapping){
+                return {
+                    filePath: toTSFileAbsPath(sourceMap.sources[lineMapping.sourceIndex]), 
+                    line: lineMapping.sourceLine,
+                    column: lineMapping.sourceColumn
+                };
+            }
+        }
+
+        function toTSFileAbsPath(tsRelPath: string): string{
+            let tsPath = dirname(luaFilePath);
+            tsPath += "/" + tsRelPath;
+            return resolve(tsPath);
+        }
+
+        // 返回原始的 Lua 文件路径与行号
+        return {filePath: luaFilePath, line: luaLine, column: 0};
+    }
+
+    /**
+     * 清除缓冲，缓冲无效后(如重新连接后)以便重新构建缓冲信息
+     */
+    export function clear(){
+        cache = {};
+        tsVerifiedLines.clear();
     }
 }
