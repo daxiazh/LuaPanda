@@ -229,6 +229,9 @@ export class LuaDebugRuntime extends EventEmitter {
                 if(LuaDebugSession.isTSBreakpoint(getinfoPath, element.line)){
                     stack.isTSBP = true;    // 设置是 TS 触发的断点
                 }
+                else{
+                    stack.isTSBP = false;   // 设置是 Lua 触发的断点
+                }
             }
             
             element.file = Tools.checkFullPath(getinfoPath); 

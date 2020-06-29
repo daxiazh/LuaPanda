@@ -381,8 +381,8 @@ export class LuaDebugSession extends LoggingDebugSession {
         // 如果传入的 TS 文件，则偿试获取对应的 lua 文件路径
         const luaFilePath = SourceMap.verifyLuaFilePath(path);
        
-        let vscodeBreakpoints = new Array();    // VScode UI识别的断点（起始行号1）
-        let luaBreakpoints = new Array();       // lua 文件的断点(起始行号1)
+        let vscodeBreakpoints = new Array<DebugProtocol.Breakpoint>();    // VScode UI识别的断点（起始行号1）
+        let luaBreakpoints = new Array<DebugProtocol.Breakpoint>();       // lua 文件的断点(起始行号1)
 
         args.breakpoints!.map(bp => {
             const id = this._runtime.getBreakPointId()
@@ -440,7 +440,7 @@ export class LuaDebugSession extends LoggingDebugSession {
             let isbkPathExist = false;  // 断点路径已经存在于断点列表中
             for (let bkMap of LuaDebugSession.breakpointsArray) {
                 if (bkMap.bkPath === luaFilePath) {
-                    bkMap["bksArray"] = luaBreakpoints;
+                    saveBreakPoint(bkMap);
                     isbkPathExist = true;
                 }
             }
@@ -448,7 +448,7 @@ export class LuaDebugSession extends LoggingDebugSession {
             if(!isbkPathExist){
                 let bk = new Object();
                 bk["bkPath"] = luaFilePath;
-                bk["bksArray"] = luaBreakpoints;
+                saveBreakPoint(bk);                
                 bk["tsPath"] = path;    // 保存一下可能的ts文件路径，也可能是lua文件
                 LuaDebugSession.breakpointsArray.push(bk);
             }
@@ -468,6 +468,54 @@ export class LuaDebugSession extends LoggingDebugSession {
             //未连接，直接返回
             this.sendResponse(response);
         }
+
+        /**
+         * 保存断点，由于需要支持 TS 与 Lua 两种文件中的断点，所以需要分开存储断点，然后再合并
+         * @param bkMap 
+         */
+        function saveBreakPoint(bkMap: any){
+            if(LuaDebugSession.isTSFile(path)){
+                // TS 与 lua 文件的断点的分开保存，以免断点互相覆盖
+                bkMap["bksTSArray"] = luaBreakpoints;
+            }
+            else{
+                bkMap["bksLuaArray"] = luaBreakpoints;
+            }
+
+            bkMap["bksArray"] = LuaDebugSession.mergeBreakpoint(bkMap["bksTSArray"], bkMap["bksLuaArray"]);
+        }
+    }
+
+    private static isLuaFile(path: string){
+        return path.endsWith(".lua");
+    }
+
+    private static isTSFile(path: string){
+        return path.endsWith(".ts");
+    }
+
+    /**
+     * 合并两个断点数组
+     * @param left 要合并的断点数组
+     * @param right 要合并的断点数组
+     * @returns 返回合并完成后的断点数组
+     */
+    private static mergeBreakpoint(left: Array<DebugProtocol.Breakpoint>, right: Array<DebugProtocol.Breakpoint>): Array<DebugProtocol.Breakpoint>{
+        let ret = new Array<DebugProtocol.Breakpoint>();        
+        if(left !== undefined){
+            ret = ret.concat(left);
+        }
+        
+        if(right === undefined){
+            return ret;
+        }
+
+        right.forEach(bp => {
+            if(ret.findIndex(value => value.line == bp.line) === -1){
+                ret.push(bp);
+            }
+        });
+        return ret;
     }
 
     /**
@@ -483,10 +531,10 @@ export class LuaDebugSession extends LoggingDebugSession {
             stackFrames: stk.frames.map(f => {
                     let source = f.file as string;
 
-                    if(source.endsWith(".lua")) {  // 处理 SourceMap
+                    if(LuaDebugSession.isLuaFile(source)) {  // 处理 SourceMap
                         // 如果当前活动窗口的文件是 ts 文件，则偿试获取对应的 ts 栈函数
                         const activeFile = Tools.getVSCodeAvtiveFilePath(true) as {retCode: number, filePath: string};
-                        if(isTSBP || (activeFile.retCode !== -1 && activeFile.filePath.endsWith(".ts"))){
+                        if(isTSBP === true || (isTSBP === undefined && activeFile.retCode !== -1 && activeFile.filePath.endsWith(".ts"))){
                             // 如果 TS 断点或当前打开的文件是 TS，则偿试源码映射
                             const ret = SourceMap.getTSMap(source, f.line);
                             source = ret.filePath;
