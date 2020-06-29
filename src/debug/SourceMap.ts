@@ -129,7 +129,7 @@ export namespace SourceMap{
         }
 
         if(!tsPath.startsWith(Tools.tsRootPath)){
-            DebugLogger.showTips(`${tsPath} 并不在 launch.json 中配置的 tsRootPath(${Tools.tsRootPath}) 目录下，无法下断点!`, 2);
+            DebugLogger.showTips(`${tsPath} 并不在 launch.json 中配置的 tsRootPath(${Tools.tsRootPath}) 目录下(注意目录大小写敏感)，无法下断点!`, 2);
             return undefined;
         }
 

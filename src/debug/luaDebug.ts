@@ -27,7 +27,7 @@ import { SourceMap } from "./SourceMap";
 export class LuaDebugSession extends LoggingDebugSession {
     public static isNeedB64EncodeStr: boolean = true;
     private static THREAD_ID = 1; 	  //调试器不支持多线程，硬编码THREAD_ID为1
-    public static TCPPort = 0;			//和客户端连接的端口号，通过VScode的设置赋值
+    public static TCPPort = 0;		  //和客户端连接的端口号，通过VScode的设置赋值
     private static breakpointsArray;  //在socket连接前临时保存断点的数组
     private static autoReconnect;
     private _configurationDone = new Subject();
@@ -146,10 +146,10 @@ export class LuaDebugSession extends LoggingDebugSession {
         Tools.pathCaseSensitivity = !!args.pathCaseSensitivity;
 
         if(args.luaRootPath){
-            Tools.luaRootPath = Tools.genUnifiedPath(resolve(args.luaRootPath)).toLowerCase();
+            Tools.luaRootPath = Tools.genUnifiedPath(resolve(args.luaRootPath));
         }
         if(args.tsRootPath){
-            Tools.tsRootPath = Tools.genUnifiedPath(resolve(args.tsRootPath)).toLowerCase();
+            Tools.tsRootPath = Tools.genUnifiedPath(resolve(args.tsRootPath));
         }
 
         if(Tools.useAutoPathMode === true){
@@ -342,6 +342,29 @@ export class LuaDebugSession extends LoggingDebugSession {
     }
 
     /**
+     * 由传入的 lua 断点信息获取对应的 TS 文件断点信息
+     * @param luaFilePath 断点所在的lua文件路径
+     * @param line 断点所在 lua 文件的行号
+     * @return 如果存在对应的 ts 文件断点信息，则返回，否则返回 lua 的断点信息
+     */
+    public static remapBreakpoint(luaFilePath: string, line: number): {filePath: string, line: number}{
+        for (let bkMap of LuaDebugSession.breakpointsArray) {
+            if (bkMap.bkPath === luaFilePath) {
+                let luaBreakpoints = bkMap["bksArray"];
+                for (const element of luaBreakpoints) {
+                    if(element.line === line){  // 具体见 LuaDebugSession.breakpointsArray 填充处
+                        if(element.tsBreakpointLine !== undefined){
+                            return {filePath: bkMap["tsPath"], line: element.tsBreakpointLine}; // 返回对应的 TS 断点信息
+                        }
+                        return {filePath: luaFilePath, line: line}; // 没有对应的 TS 断点，直接返回原始断点信息
+                    }
+                }
+            }
+        }
+        return {filePath: luaFilePath, line: line};
+    }
+
+    /**
      * VSCode -> Adapter 设置(删除)断点
      */
     protected setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
@@ -353,6 +376,7 @@ export class LuaDebugSession extends LoggingDebugSession {
             path = path.replace(LuaDebugSession.replacePath[1], LuaDebugSession.replacePath[0]);
         } 
 
+        // 如果传入的 TS 文件，则偿试获取对应的 lua 文件路径
         const luaFilePath = SourceMap.verifyLuaFilePath(path);
        
         let vscodeBreakpoints = new Array();    // VScode UI识别的断点（起始行号1）
@@ -380,7 +404,7 @@ export class LuaDebugSession extends LoggingDebugSession {
                 breakpoint.verified = false;    // 设置断点无效
             }
             else{
-                // 重新设置一下断点的行号。注：行号会根据 sourcemap 文件来自动定位到合适的行号
+                // 重新设置一下断点的行号。注：行号会根据 sourcemap 文件来自动定位到 TS 合适的行号
                 breakpoint.line = result.tsLine ? result.tsLine : result.luaLine;
 
                 // 构建 lua 使用的断点信息
@@ -394,6 +418,8 @@ export class LuaDebugSession extends LoggingDebugSession {
                 else {
                     breakpoint = new LineBreakpoint(true, bp.line, id);
                 }
+
+                breakpoint.tsBreakpointLine = result.tsLine;    // 保存一下TS断点的位置，当 lua 断点时反查TS文件的断点位置时使用
     
                 luaBreakpoints.push(breakpoint);
             }
@@ -421,6 +447,7 @@ export class LuaDebugSession extends LoggingDebugSession {
                 let bk = new Object();
                 bk["bkPath"] = luaFilePath;
                 bk["bksArray"] = luaBreakpoints;
+                bk["tsPath"] = path;    // 保存一下可能的ts文件路径，也可能是lua文件
                 LuaDebugSession.breakpointsArray.push(bk);
             }
         }
@@ -451,7 +478,16 @@ export class LuaDebugSession extends LoggingDebugSession {
         const stk = this._runtime.stack(startFrame, endFrame);
         response.body = {
             stackFrames: stk.frames.map(f => {
-                    let source = f.file;
+                    let source = f.file as string;
+
+                    if(source.endsWith(".lua")) {
+                        // 如果当前活动窗口的文件是 ts 文件，则偿试获取对应的 ts 栈函数
+                        const activeFile = Tools.getVSCodeAvtiveFilePath() as any;
+                        if(activeFile.retCode !== -1){
+
+                        }
+                    }
+
                     if(LuaDebugSession.replacePath && LuaDebugSession.replacePath.length === 2){
                         source = source.replace(LuaDebugSession.replacePath[0], LuaDebugSession.replacePath[1]);
                     }

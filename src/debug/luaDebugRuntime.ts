@@ -5,6 +5,7 @@ import { DebugProtocol } from 'vscode-debugprotocol';
 import { DebugLogger } from '../common/logManager';
 import { StatusBarManager } from '../common/statusBarManager';
 import { Tools } from '../common/tools';
+import { LuaDebugSession } from './luaDebug';
 
 
 export interface LuaBreakpoint {
@@ -222,6 +223,14 @@ export class LuaDebugRuntime extends EventEmitter {
             let linenum: string = element.line;
             element.line = parseInt(linenum); //转为VSCode行号(int)
             let getinfoPath : string = element.file;
+
+            if(reason == "stopOnBreakpoint"){
+                // 查找是否有对应的TS断点，如果有，则使用TS断点的位置
+                const ret = LuaDebugSession.remapBreakpoint(getinfoPath, element.line);
+                getinfoPath = ret.filePath;
+                element.line = ret.line;
+            }
+            
             element.file = Tools.checkFullPath(getinfoPath); 
         });
         //先保存堆栈信息，再发暂停请求
