@@ -122,14 +122,14 @@ export namespace SourceMap{
      * @param tsFileName 传入要检查的文件路径，有可能是 ts 文件，也有可能不是
      */
     export function verifyLuaFilePath(tsFileName: string): string{
-        const tsPath = Tools.genUnifiedPath(tsFileName);
+        const tsPath = tsFileName;
         
         if(!tsPath.endsWith(".ts")){
             return tsFileName;
         }
 
         if(!tsPath.startsWith(Tools.tsRootPath)){
-            DebugLogger.showTips(`${tsFileName} 并不在 launch.json 中配置的 tsRootPath(${Tools.tsRootPath}) 目录下，无法下断点!`, 2);
+            DebugLogger.showTips(`${tsPath} 并不在 launch.json 中配置的 tsRootPath(${Tools.tsRootPath}) 目录下，无法下断点!`, 2);
             return undefined;
         }
 
@@ -146,6 +146,10 @@ export namespace SourceMap{
     export function verifyBreakpoint(tsFileName: string, line: number, luaPath: string): {tsLine: number|undefined, luaLine: number} {
         if(luaPath === undefined){
             return {tsLine: undefined, luaLine: undefined};
+        }
+
+        if(tsFileName == luaPath){  // 不是 ts 文件
+            return {tsLine: undefined, luaLine: line};
         }
         
         // 先在缓冲中查找

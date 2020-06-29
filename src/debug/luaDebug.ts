@@ -12,7 +12,7 @@ import {
     Thread, StackFrame, Scope, Source, Handles
 } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { basename } from 'path';
+import { basename, resolve } from 'path';
 import { LuaDebugRuntime, LuaBreakpoint } from './luaDebugRuntime';
 const { Subject } = require('await-notify');
 import * as Net from 'net';
@@ -146,10 +146,10 @@ export class LuaDebugSession extends LoggingDebugSession {
         Tools.pathCaseSensitivity = !!args.pathCaseSensitivity;
 
         if(args.luaRootPath){
-            Tools.luaRootPath = Tools.genUnifiedPath(args.luaRootPath);
+            Tools.luaRootPath = Tools.genUnifiedPath(resolve(args.luaRootPath)).toLowerCase();
         }
         if(args.tsRootPath){
-            Tools.tsRootPath = Tools.genUnifiedPath(args.tsRootPath);
+            Tools.tsRootPath = Tools.genUnifiedPath(resolve(args.tsRootPath)).toLowerCase();
         }
 
         if(Tools.useAutoPathMode === true){
@@ -355,8 +355,8 @@ export class LuaDebugSession extends LoggingDebugSession {
 
         const luaFilePath = SourceMap.verifyLuaFilePath(path);
        
-        let vscodeBreakpoints = new Array(); //VScode UI识别的断点（起始行号1）
-        let luaBreakpoints = new Array();   // lua 文件的断点(起始行号1)
+        let vscodeBreakpoints = new Array();    // VScode UI识别的断点（起始行号1）
+        let luaBreakpoints = new Array();       // lua 文件的断点(起始行号1)
 
         args.breakpoints!.map(bp => {
             const id = this._runtime.getBreakPointId()
@@ -409,7 +409,7 @@ export class LuaDebugSession extends LoggingDebugSession {
         }
 
         if(luaFilePath !== undefined){
-            let isbkPathExist = false;  //断点路径已经存在于断点列表中
+            let isbkPathExist = false;  // 断点路径已经存在于断点列表中
             for (let bkMap of LuaDebugSession.breakpointsArray) {
                 if (bkMap.bkPath === luaFilePath) {
                     bkMap["bksArray"] = luaBreakpoints;
@@ -425,12 +425,12 @@ export class LuaDebugSession extends LoggingDebugSession {
             }
         }
 
-        if (DataProcessor._socket && LuaDebugSession.userConnectionFlag) {
+        if (DataProcessor._socket && LuaDebugSession.userConnectionFlag && luaFilePath !== undefined) {
             //已建立连接
             let callbackArgs = new Array();
             callbackArgs.push(this);
             callbackArgs.push(response);
-            this._runtime.setBreakPoint(path, luaBreakpoints, function (arr) {
+            this._runtime.setBreakPoint(luaFilePath, luaBreakpoints, function (arr) {
                 DebugLogger.AdapterInfo("确认断点");
                 let ins = arr[0];
                 ins.sendResponse(arr[1]);//在收到debugger的返回后，通知VSCode, VSCode界面的断点会变成已验证

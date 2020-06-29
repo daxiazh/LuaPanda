@@ -63,7 +63,7 @@ export class Tools {
         }
         //win盘符转为小写
         beProcessPath = beProcessPath.replace(/^\w:/, function($1){return $1.toLocaleLowerCase()});
-        return beProcessPath;
+        return (beProcessPath as string).toLowerCase();
     }
 
     // 获取当前VScode活跃窗口的文件路径
